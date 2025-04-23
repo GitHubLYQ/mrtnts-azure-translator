@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { v4 as uuidv4 } from 'uuid'; // Import uuid for Azure Translator correlation ID
+// uuid 不再需要在前端导入
 
 // Helper function to get env var or throw error
 function getEnvVar(key: string): string {
@@ -28,69 +28,22 @@ function base64ToBlob(base64: string, contentType: string = 'image/jpeg'): Blob 
  * @throws Error if the API call fails or required env vars are missing
  */
 export const recognizeImage = async (imageDataBase64: string): Promise<{ ocrText: string | null }> => {
-  // API Key is still needed for the actual request header, read from client-side env
-  const apiKey = getEnvVar('VITE_AZURE_COMPUTER_VISION_KEY');
-  
-  // Target the local proxy path configured in vite.config.ts
-  // Add the necessary /vision path part which will remain after rewrite removes /api/vision
-  const proxyApiUrl = '/api/vision/vision/v3.2/ocr'; 
-
-  console.log(`通过 Vite 代理调用 Azure Computer Vision OCR API (路径: ${proxyApiUrl})`);
-
+  console.log('调用后端代理 /api/recognize');
   try {
     const imageBlob = base64ToBlob(imageDataBase64);
-
-    // Send POST request to the proxy path
-    const response = await axios.post(proxyApiUrl, imageBlob, { 
-      params: {
-        language: 'unk',
-        detectOrientation: 'true',
-        model_version: 'latest'
-      },
+    // 将 Blob 发送到后端函数
+    const response = await axios.post('/api/recognize', imageBlob, {
       headers: {
-        // Key must still be sent, proxy only handles CORS/Target URL
-        'Ocp-Apim-Subscription-Key': apiKey, 
-        'Content-Type': 'application/octet-stream'
-      }
+        'Content-Type': 'application/octet-stream' // 告诉后端我们发送的是二进制流
+      },
+       // 后端函数应该返回 JSON
     });
-
-    // Process the OCR results (same logic as before)
-    let extractedText = '';
-    if (response.data?.regions?.length) { // Simplified check
-      response.data.regions.forEach((region: any) => {
-        region.lines.forEach((line: any) => {
-          line.words.forEach((word: any) => {
-            extractedText += word.text + ' ';
-          });
-          extractedText += '\n';
-        });
-      });
-    }
-
-    console.log("Azure CV OCR Result (via proxy):", extractedText.trim());
-    return { ocrText: extractedText.trim() || null };
-
-  } catch (error) {
-    // Error handling remains mostly the same
-    console.error('Azure Computer Vision API 调用失败 (通过代理):', error);
-    if (axios.isAxiosError(error) && error.response) {
-      // Handle specific Azure API errors (e.g., 401 Unauthorized, 400 Bad Request, 404 Not Found)
-      console.error('Azure API Error Status:', error.response.status);
-      console.error('Azure API Error Data:', error.response.data);
-      let message = `调用 Azure CV 服务失败 (状态码: ${error.response.status})`;
-      if (error.response.data?.error?.message) {
-          message += `: ${error.response.data.error.message}`;
-      }
-      throw new Error(message);
-    } else if (axios.isAxiosError(error) && error.request) {
-        // Request was made but no response received (could be network issue, timeout, proxy misconfig)
-        console.error('请求已发出但未收到 Azure CV 响应 (检查网络或代理配置):', error.request);
-         throw new Error('调用 Azure CV 服务时未收到响应。');
-    } else {
-        // Other errors (e.g., setup error before request)
-        console.error('调用 Azure CV 服务时发生错误:', error);
-        throw new Error('调用 Azure Computer Vision 服务时发生未知错误。');
-    }
+    console.log("后端代理识别结果:", response.data);
+    // 后端函数应直接返回 { ocrText: "..." } 结构
+    return response.data;
+  } catch (error: any) {
+    console.error('调用 /api/recognize 失败:', error.response?.data || error.message);
+    throw new Error(`识别代理调用失败: ${error.response?.data?.error || error.message}`);
   }
 };
 
@@ -102,49 +55,21 @@ export const recognizeImage = async (imageDataBase64: string): Promise<{ ocrText
  * @throws Error if the API call fails or required env vars are missing
  */
 export const translateText = async (text: string, targetLanguage: 'ko' | 'en'): Promise<string> => {
-  const apiKey = getEnvVar('VITE_AZURE_TRANSLATOR_KEY');
-  const endpoint = getEnvVar('VITE_AZURE_TRANSLATOR_ENDPOINT');
-  const region = getEnvVar('VITE_AZURE_TRANSLATOR_REGION');
-
+  console.log(`调用后端代理 /api/translate (目标: ${targetLanguage})`);
   try {
-    const response = await axios({
-        baseURL: endpoint,
-        url: '/translate',
-        method: 'post',
-        headers: {
-            'Ocp-Apim-Subscription-Key': apiKey,
-            'Ocp-Apim-Subscription-Region': region,
-            'Content-type': 'application/json',
-            'X-ClientTraceId': uuidv4().toString()
-        },
-        params: {
-            'api-version': '3.0',
-            'to': targetLanguage
-        },
-        data: [{
-            'Text': text
-        }],
-        responseType: 'json'
-    });
-
-    // Azure Translator 返回一个数组，即使只翻译一个文本
-    if (response.data && Array.isArray(response.data) && response.data[0]?.translations?.[0]?.text) {
-      return response.data[0].translations[0].text;
-    } else {
-      console.error('Azure Translator API 响应格式不符合预期:', response.data);
-      throw new Error('无法从 Azure Translator 响应中解析翻译结果');
+    const response = await axios.post('/api/translate', {
+      text: text,
+      targetLanguage: targetLanguage
+    }); // 发送 JSON
+     console.log("后端代理翻译结果:", response.data);
+    // 后端函数应返回 { translatedText: "..." }
+    if (!response.data?.translatedText) {
+         throw new Error("从代理收到的翻译结果格式无效");
     }
-
-  } catch (error) {
-    console.error('Azure Translator API 调用失败:', error);
-    if (axios.isAxiosError(error) && !error.response && error.message.includes('Network Error')) {
-       console.error("***** DETECTED POTENTIAL CORS ISSUE with Azure Translator API *****");
-       throw new Error('调用 Azure Translator 服务失败，可能存在 CORS 跨域问题。请检查浏览器控制台或考虑使用后端代理。');
-    }
-    if (axios.isAxiosError(error) && error.response) {
-      console.error('Azure API Error Data:', error.response.data);
-    }
-    throw new Error('调用 Azure Translator 服务失败');
+    return response.data.translatedText;
+  } catch (error: any) {
+    console.error('调用 /api/translate 失败:', error.response?.data || error.message);
+     throw new Error(`翻译代理调用失败: ${error.response?.data?.error || error.message}`);
   }
 };
 
@@ -156,37 +81,18 @@ export const translateText = async (text: string, targetLanguage: 'ko' | 'en'): 
  * @throws Error if the API call fails or required env vars are missing
  */
 export const synthesizeSpeech = async (text: string, languageCode: string): Promise<ArrayBuffer> => {
-  const subscriptionKey = getEnvVar('VITE_AZURE_TTS_SUBSCRIPTION_KEY');
-  const apiEndpoint = getEnvVar('VITE_AZURE_TTS_ENDPOINT');
-
-  const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-
-  const ssml = `
-    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${languageCode}'>
-      <voice name='${languageCode === 'ko-KR' ? 'ko-KR-SunHiNeural' : 'en-US-JennyNeural'}'>${escapedText}</voice>
-    </speak>`;
-
+  console.log(`调用后端代理 /api/tts (语言: ${languageCode})`);
   try {
-    const response = await axios.post(apiEndpoint, ssml, {
-      headers: {
-        'Ocp-Apim-Subscription-Key': subscriptionKey,
-        'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3'
-      },
-      responseType: 'arraybuffer'
+    const response = await axios.post('/api/tts', {
+      text: text,
+      languageCode: languageCode
+    }, {
+      responseType: 'arraybuffer' // 期望从后端函数获取音频数据
     });
-
-    return response.data as ArrayBuffer;
-
-  } catch (error) {
-    console.error('Azure TTS API 调用失败:', error);
-     if (axios.isAxiosError(error) && !error.response && error.message.includes('Network Error')) {
-       console.error("***** DETECTED POTENTIAL CORS ISSUE with Azure TTS API *****");
-       throw new Error('调用 Azure TTS 服务失败，可能存在 CORS 跨域问题。请检查浏览器控制台或考虑使用后端代理。');
-    }
-     if (axios.isAxiosError(error) && error.response) {
-      console.error('Azure API Error Data:', error.response.data);
-    }
-    throw new Error('调用 Azure TTS 服务失败');
+     console.log("后端代理 TTS 响应状态:", response.status);
+    return response.data; // 直接返回 ArrayBuffer
+  } catch (error: any) {
+    console.error('调用 /api/tts 失败:', error.response?.statusText || error.message);
+     throw new Error(`TTS 代理调用失败: ${error.response?.statusText || error.message}`);
   }
 }; 

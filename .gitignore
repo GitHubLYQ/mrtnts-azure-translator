@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build output
+dist/
+*/dist/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE/Editor specific
+.vscode/
+.idea/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vercel output
+.vercel/
+
+# Python cache (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Conda env files (if using conda outside docker)
+/envs/
+/.conda/
