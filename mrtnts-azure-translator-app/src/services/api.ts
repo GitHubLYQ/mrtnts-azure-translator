@@ -1,15 +1,6 @@
 import axios from 'axios';
 // uuid 不再需要在前端导入
 
-// Helper function to get env var or throw error
-function getEnvVar(key: string): string {
-  const value = import.meta.env[key];
-  if (value === undefined || value === null || value === '') {
-    throw new Error(`Missing environment variable: ${key}. Please check your .env file.`);
-  }
-  return value;
-}
-
 // Helper function to convert Base64 to Blob for Azure CV upload
 function base64ToBlob(base64: string, contentType: string = 'image/jpeg'): Blob {
     const byteCharacters = atob(base64);
@@ -22,7 +13,7 @@ function base64ToBlob(base64: string, contentType: string = 'image/jpeg'): Blob 
 }
 
 /**
- * 调用 Azure Computer Vision API 进行 OCR 识别 (通过 Vite 开发代理)
+ * 调用 Azure Computer Vision API 进行 OCR 识别 (通过后端代理)
  * @param imageDataBase64 Base64 编码的图像数据
  * @returns Promise resolving to an object containing the extracted text.
  * @throws Error if the API call fails or required env vars are missing
@@ -48,7 +39,7 @@ export const recognizeImage = async (imageDataBase64: string): Promise<{ ocrText
 };
 
 /**
- * 调用 Azure Translator API 进行文本翻译
+ * 调用 Azure Translator API 进行文本翻译 (通过后端代理)
  * @param text 要翻译的文本
  * @param targetLanguage 目标语言 ('ko' for Korean, 'en' for English)
  * @returns Promise resolving to the translated text
@@ -74,7 +65,7 @@ export const translateText = async (text: string, targetLanguage: 'ko' | 'en'): 
 };
 
 /**
- * 调用 Azure TTS API 合成语音
+ * 调用 Azure TTS API 合成语音 (通过后端代理)
  * @param text 要合成语音的文本
  * @param languageCode 语言代码 (e.g., 'ko-KR', 'en-US')
  * @returns Promise resolving to audio data as an ArrayBuffer
