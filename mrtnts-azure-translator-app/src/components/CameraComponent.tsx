@@ -23,7 +23,7 @@ const CameraComponent: React.FC<CameraComponentProps> = ({
     setError(null);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width, height },
+        video: { facingMode: { exact: 'environment' }, width, height },
         audio: false, // No audio needed for image capture
       });
       setStream(mediaStream);
@@ -45,7 +45,9 @@ const CameraComponent: React.FC<CameraComponentProps> = ({
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
           setError('摄像头访问权限被拒绝。请在浏览器设置中允许访问。');
         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-           setError('未找到可用的摄像头设备。');
+           setError('未找到可用的摄像头设备。请尝试刷新页面。');
+        } else if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+          setError('无法强制使用后置摄像头，请检查摄像头权限或尝试不强制。可以尝试去掉exact。');
         } else {
            setError('无法访问摄像头，请检查设备连接或权限。');
         }
@@ -113,7 +115,7 @@ const CameraComponent: React.FC<CameraComponentProps> = ({
   }, [captureTrigger]); // Keep dependency array as is
 
   return (
-    <div style={{ position: 'relative', width, height }}>
+    <div className="camera-container" style={{ position: 'relative' }}>
       {error && (
         <div style={{ color: 'red', marginBottom: '10px', padding: '10px', border: '1px solid red', background: '#ffeeee' }}>
           错误: {error}
@@ -124,18 +126,27 @@ const CameraComponent: React.FC<CameraComponentProps> = ({
       )}
       <video
         ref={videoRef}
-        width={width}
-        height={height}
         autoPlay
         playsInline // Important for mobile browsers
         muted // Muted because we don't request audio
-        style={{ display: stream ? 'block' : 'none', maxWidth: '100%', height: 'auto' }}
+        style={{ display: stream ? 'block' : 'none', width: '100%', height: 'auto' }}
       />
       {/* Canvas for capturing frames, kept hidden */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
        {/* Optional: Show a message or placeholder when the stream is not active */}
        {!stream && !error && (
-          <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed grey', background: '#f0f0f0' }}>
+          <div style={{
+            position: 'absolute', // Position relative to parent
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            border: '1px dashed grey', 
+            background: '#f0f0f0' 
+          }}> {/* Updated: Use absolute positioning to fill container */} 
             正在启动摄像头...
           </div>
        )}

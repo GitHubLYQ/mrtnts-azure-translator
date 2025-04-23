@@ -171,8 +171,6 @@ function App() {
           <CameraComponent
             onFrameCaptured={handleFrameCaptured}
             captureTrigger={captureTriggerRef.current === null ? undefined : captureTriggerRef.current}
-            width={480}
-            height={360}
           />
           <div className="controls">
             <button onClick={triggerCapture} disabled={isRecognizing}>{(isRecognizing && !capturedImageData) ? '处理中...' : '捕获并识别'}</button>

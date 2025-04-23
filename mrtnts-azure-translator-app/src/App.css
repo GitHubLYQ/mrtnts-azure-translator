@@ -170,10 +170,47 @@ h1 {
 @media (max-width: 768px) {
   .main-content {
     flex-direction: column;
-    align-items: center;
+    align-items: center; /* Center items vertically */
   }
+
   .left-panel,
   .right-panel {
-    max-width: 90%;
+    width: 95%; /* Use more screen width */
+    margin-bottom: 20px; /* Add space between panels */
+  }
+
+  /* Style the camera container specifically */
+  .left-panel .camera-container {
+    width: 100%; /* Take full width of left-panel */
+    max-width: 480px; /* Limit max width */
+    aspect-ratio: 4 / 3; /* Maintain 4:3 aspect ratio */
+    margin: 0 auto 15px auto; /* Center horizontally, add bottom margin */
+    border: 1px solid #ccc; /* Optional: add border for visibility */
+    overflow: hidden; /* Ensure video doesn't overflow */
+  }
+
+  .left-panel .controls {
+    width: 100%; /* Make controls take full width */
+    max-width: 480px; /* Match camera max width */
+    margin: 0 auto; /* Center controls */
+    justify-content: space-around; /* Space out buttons */
+  }
+
+  .right-panel {
+    order: 2; /* Ensure results appear below camera */
+  }
+
+  /* Reduce heading size on smaller screens */
+  h1 {
+    font-size: 1.8em; /* Adjust as needed */
+    margin-bottom: 15px; /* Adjust spacing */
+  }
+
+  /* Ensure images and textareas dont overflow */
+  .image-view-container img,
+  .results-area textarea {
+    max-width: 100%;
+    height: auto; /* Maintain aspect ratio for img, allow auto height for textarea */
+    box-sizing: border-box; /* Include padding/border in width */
   }
 }
