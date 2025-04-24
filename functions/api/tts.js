@@ -11,6 +11,9 @@ export async function onRequestPost(context) {
   const apiEndpoint = env.AZURE_TTS_ENDPOINT; // Full URL: e.g., https://YOUR_REGION.tts.speech.microsoft.com/cognitiveservices/v1
   // const region = env.AZURE_TTS_REGION; // Region might be part of the endpoint or needed separately depending on Azure setup
 
+  // Verify the key is read correctly
+  console.log(`Azure Key Type: ${typeof subscriptionKey}, Length: ${subscriptionKey?.length}`);
+
   if (!subscriptionKey || !apiEndpoint) {
     console.error('Server configuration error: Missing Azure TTS credentials.');
     return new Response(JSON.stringify({ error: 'Server configuration error: Missing credentials' }), {
@@ -38,22 +41,32 @@ export async function onRequestPost(context) {
     });
   }
 
+  /* // Temporarily disable dynamic SSML generation
   // Simple SSML escaping
   const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-  const ssml = `
+  const ssml_dynamic = `
     <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${languageCode}'>
       <voice name='${languageCode === 'ko-KR' ? 'ko-KR-SunHiNeural' : 'en-US-JennyNeural'}'>${escapedText}</voice>
     </speak>`;
+  */
+
+  // Use a hardcoded, simple SSML for testing
+  const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='en-US-JennyNeural'>Hello</voice></speak>`;
+
+  const headers = {
+    'Ocp-Apim-Subscription-Key': subscriptionKey,
+    'Content-Type': 'application/ssml+xml',
+    'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
+    // 'User-Agent': 'your-app-name' // Optional
+  };
 
   try {
     console.log(`Attempting Azure TTS call to: ${apiEndpoint} with lang: ${languageCode}`); // Added log
+    console.log('Sending SSML:', ssml); // Log the exact SSML
+    console.log('Sending Headers:', JSON.stringify(headers)); // Log the headers
+
     const azureResponse = await axios.post(apiEndpoint, ssml, {
-      headers: {
-        'Ocp-Apim-Subscription-Key': subscriptionKey,
-        'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
-        // 'User-Agent': 'your-app-name' // Optional
-      },
+      headers: headers,
       responseType: 'arraybuffer', // Crucial for receiving audio data
     });
 
