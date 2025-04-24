@@ -1,7 +1,7 @@
 // functions/api/tts.js
-// Adapted for Cloudflare Pages Functions - Enhanced Error Reporting
+// Adapted for Cloudflare Pages Functions - Enhanced Error Reporting & Using Fetch
 
-import axios from 'axios';
+// import axios from 'axios'; // No longer needed
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -65,14 +65,51 @@ export async function onRequestPost(context) {
     console.log('Sending SSML:', ssml); // Log the exact SSML
     console.log('Sending Headers:', JSON.stringify(headers)); // Log the headers
 
-    const azureResponse = await axios.post(apiEndpoint, ssml, {
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
       headers: headers,
-      responseType: 'arraybuffer', // Crucial for receiving audio data
+      body: ssml,
     });
 
-    console.log('Azure TTS call successful.'); // Added log
+    // Check if the request was successful
+    if (!response.ok) {
+      // Throw an error to be caught by the catch block
+      // Try to include details from the response if possible
+      let errorDetails = `Azure TTS API request failed with status ${response.status} (${response.statusText}).`;
+      let azureErrorBody = null;
+      try {
+        // Attempt to read response body as text or decode ArrayBuffer
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('json')) {
+          azureErrorBody = await response.json();
+        } else if (contentType && contentType.includes('text')) {
+          azureErrorBody = await response.text();
+        } else {
+          // Try decoding ArrayBuffer as text for unknown types or potential HTML errors
+          const buffer = await response.arrayBuffer();
+          azureErrorBody = new TextDecoder().decode(buffer);
+        }
+        console.error('Azure TTS Error Response Body (decoded):', azureErrorBody); 
+      } catch (e) {
+        console.error('Failed to read or parse Azure error response body:', e);
+        azureErrorBody = 'Could not read error response body.'
+      }
+
+      // Construct a more informative error object
+      const error = new Error(errorDetails);
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.details = azureErrorBody || 'No additional details available.'; // Add parsed details
+      throw error;
+    }
+
+    console.log('Azure TTS call successful via fetch.'); // Updated log
+
+    // Get the audio data as ArrayBuffer
+    const audioData = await response.arrayBuffer();
+
     // Send the audio data back with the correct content type
-    return new Response(azureResponse.data, {
+    return new Response(audioData, {
       status: 200,
       headers: {
         'Content-Type': 'audio/mpeg',
@@ -89,48 +126,32 @@ export async function onRequestPost(context) {
         azureErrorDetails: null, // Initialize detail field
     };
 
-    if (axios.isAxiosError(error)) { // More robust check for Axios errors
-        if (error.response) {
-            // Error response received from Azure
-            status = error.response.status;
-            console.error(`Azure TTS Error Response Status: ${status}`);
-            console.error('Azure TTS Error Response Headers:', JSON.stringify(error.response.headers));
-            // Try to get details - Azure errors might be in data (often JSON) or plain text
-            let details = error.response.data;
-            // If data is ArrayBuffer (e.g., HTML error page), try decoding as text
-            if (details instanceof ArrayBuffer) {
-                try {
-                    details = new TextDecoder().decode(details);
-                    console.error('Azure TTS Error Response Body (decoded): ', details);
-                } catch (decodeError) {
-                    console.error('Failed to decode Azure error ArrayBuffer:', decodeError);
-                    details = 'Could not decode error response body (ArrayBuffer).';
-                }
-            } else {
-                 console.error('Azure TTS Error Response Body:', JSON.stringify(details));
-            }
-
-            errorBody = {
-                error: `Azure TTS API request failed with status ${status}.`,
-                azureStatus: status,
-                azureStatusText: error.response.statusText,
-                azureErrorDetails: details || 'No additional details available in response data.', // Add details here
-            };
-        } else if (error.request) {
-            // Request was made but no response received
-            console.error('Azure TTS Error: No response received. Request details:', error.request);
-            status = 504; // Gateway Timeout might be appropriate
-            errorBody.error = 'No response received from Azure TTS service.';
-        } else {
-            // Something happened in setting up the request
-            console.error('Axios setup error during Azure TTS call:', error.message);
-            errorBody.error = `Error setting up Azure TTS request: ${error.message}`;
-        }
+    // --> Modify catch block for generic errors <--
+    // Check if the error object has status/details from our fetch error handling
+    if (error.status) {
+      status = error.status;
+      errorBody = {
+          error: error.message, // Use the message from the thrown error
+          azureStatus: status,
+          azureStatusText: error.statusText || '',
+          azureErrorDetails: error.details || 'No additional details available in response data.', 
+      };
+    } else {
+      // Handle other potential errors (e.g., network issues before response)
+      console.error('Non-HTTP error during Azure TTS processing:', error);
+      errorBody.error = `An unexpected error occurred: ${error.message || 'Unknown error'}`;
+      // Keep status as 500 for truly unexpected errors
+    }
+    
+    /* // Remove Axios-specific error handling
+    if (axios.isAxiosError(error)) { 
+        // ... axios specific code ...
     } else {
          // Non-Axios error
          console.error('Non-Axios error during Azure TTS processing:', error);
          errorBody.error = `An unexpected error occurred: ${error.message || 'Unknown error'}`;
     }
+    */
 
     // Return the detailed error information as JSON
     return new Response(JSON.stringify(errorBody), {
