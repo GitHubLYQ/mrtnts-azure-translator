@@ -23,7 +23,7 @@ const CameraComponent: React.FC<CameraComponentProps> = ({
     setError(null);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: 'environment' }, width, height },
+        video: { facingMode: 'environment', width, height },
         audio: false, // No audio needed for image capture
       });
       setStream(mediaStream);
